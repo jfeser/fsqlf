@@ -3,7 +3,7 @@ PRJNAME=fsqlf
 CFLAGS+=-std=c99
 CFLAGS+=-Wall
 CFLAGS+=-pedantic-errors
-CFLAGS+=-g
+CFLAGS+=-O2
 CFLAGS+=-Iinclude
 
 CXXFLAGS+=-DVERSION=\"$(VERSION)\"
@@ -16,20 +16,18 @@ ifdef WIN
 	EXEC_GUI=$(BLD)/wx_fsqlf.exe
 	UTIL_TXT2H=$(BLD)/text_to_header.exe
 	CFLAGS+=-DBUILDING_LIBFSQLF
-	# i686
-	# https://myonlineusb.wordpress.com/2011/06/08/what-is-the-difference-between-i386-i486-i586-i686-i786/
-	# CC=i586-mingw32msvc-gcc
-	# CXX=i586-mingw32msvc-g++
-	# CXXFLAGS+= `/usr/i586-mingw32msvc/bin/wx-config --cxxflags | sed 's/-mthreads//'`
-	# LDFLAGS+= `/usr/i586-mingw32msvc/bin/wx-config --libs     | sed 's/-mthreads//'`
 	CC=i686-w64-mingw32-gcc
 	CXX=i686-w64-mingw32-g++
 	CXXFLAGS+= `/usr/i686-w64-mingw32/bin/wx-config --cxxflags | sed 's/-mthreads//'`
 	LDFLAGS+=-static-libgcc -static-libstdc++
 	LDFLAGS+= `/usr/i686-w64-mingw32/bin/wx-config --libs     | sed 's/-mthreads//'`
-	# Option "-mthreads" needs to be removed, so mingwm10.dll would not be needed
-	# (http://old.nabble.com/mingwm10.dll-ts8920679.html)
+  # Option "-mthreads" needs to be removed, so mingwm10.dll would not be needed
+  # (http://old.nabble.com/mingwm10.dll-ts8920679.html)
+  LIBNAME=$(BLD)/libfsqlf.dll
+  LIBNAME2=$(BLD)/libfsqlf.lib
+  LIBFLAGS=-shared -Wl,--out-implib,$(LIBNAME2)
 else
+	UNAME_S:=$(shell uname -s)
 	BLD=builds/make-linux
 	OS_TARGET=linux
 	PREFIX=/usr/local
@@ -40,24 +38,15 @@ else
 	CXX=g++
 	CXXFLAGS+= `wx-config --cxxflags`
 	LDFLAGS+= `wx-config --libs`
-	ifneq (Darwin, ${_system_type})
+	ifeq ($(UNAME_S),Linux) # Linux specific settings
 		CFLAGS+=-m32
-	else
-		CFLAGS+=-m64
-	endif
-endif
-
-ifeq (Darwin, ${_system_type})
-	LIBNAME=$(BLD)/libfsqlf.dylib
-	LIBFLAGS=-dynamiclib
-else
-	ifdef WIN
-		LIBNAME=$(BLD)/libfsqlf.dll
-		LIBNAME2=$(BLD)/libfsqlf.lib
-		LIBFLAGS=-shared -Wl,--out-implib,$(LIBNAME2)
-	else
 		LIBNAME=$(BLD)/libfsqlf.so
 		LIBFLAGS=-shared
+	endif
+	ifeq ($(UNAME_S),Darwin) # Macos specific settings
+		CFLAGS+=-m64
+		LIBNAME=$(BLD)/libfsqlf.dylib
+		LIBFLAGS=-dynamiclib
 	endif
 endif
 
@@ -68,6 +57,8 @@ endif
 
 
 all: $(EXEC_CLI) $(EXEC_GUI)
+cli: $(EXEC_CLI)
+gui: $(EXEC_GUI)
 
 
 
@@ -222,13 +213,16 @@ prep_bin: $(EXEC_CLI) $(EXEC_GUI) $(LIBNAME) $(BLD)/formatting.conf
 #
 ifeq ($(OS_TARGET),linux)
 
-install: $(EXEC_CLI) $(EXEC_GUI) $(BLD)/formatting.conf
+install-cli: $(EXEC_CLI) $(BLD)/formatting.conf
 	install -d $(PREFIX)/bin
-	install $(EXEC_CLI) $(EXEC_GUI) $(PREFIX)/bin
+	install $(EXEC_CLI) $(PREFIX)/bin
 	install -d $(PREFIX)/share/fsqlf
 	install -m 644 $(BLD)/formatting.conf $(PREFIX)/share/fsqlf/formatting.conf.example
 	install -d $(PREFIX)/lib
 	install $(LIBNAME) $(PREFIX)/lib
+
+install: install-cli $(EXEC_GUI)
+	install $(EXEC_GUI) $(PREFIX)/bin
 
 uninstall:
 ifdef EXEC_CLI
